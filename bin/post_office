@@ -4,9 +4,9 @@ $LOAD_PATH.unshift File.dirname(__FILE__) + '/../lib'
 require 'optparse'
 require 'logger'
 require 'thread'
-require 'smtp_server.rb'
-require 'pop_server.rb'
-require 'config_file.rb'
+require 'post_office/smtp_server'
+require 'post_office/pop_server'
+require 'post_office/config_file'
 
 options = ConfigFile.detect.read
 
@@ -57,10 +57,10 @@ optparse.parse!
 # OS X Startup Item
 #
 if options[:startup_item]
-  require 'startup_item.rb'
+  require 'post_office/startup_item'
   case options[:startup_item]
-    when :install then StartupItem.install
-    when :remove then StartupItem.remove
+  when :install then PostOffice::StartupItem.install
+  when :remove then PostOffice::StartupItem.remove
   end
   exit
 end
@@ -68,19 +68,19 @@ end
 #
 # Create our logger
 #
-$log = Logger.new(options[:logfile] || STDOUT)
-$log.level = options[:verbose] ? Logger::DEBUG : Logger::INFO
-$log.datetime_format = "%H:%M:%S"
+log = Logger.new(options[:logfile] || STDOUT)
+log.level = options[:verbose] ? Logger::DEBUG : Logger::INFO
+log.datetime_format = "%H:%M:%S"
 
 begin
-  smtp_server = Thread.new{ SMTPServer.new(options[:smtp_port]) }
-  pop_server  = Thread.new{ POPServer.new(options[:pop3_port]) }
+  smtp_server = Thread.new{ PostOffice::SMTPServer.new(options[:smtp_port], logger: log).run }
+  pop_server  = Thread.new{ PostOffice::POPServer.new(options[:pop3_port], logger: log) }
 
   smtp_server.join
   pop_server.join
 rescue Interrupt
-  $log.info "Interrupt..."
+  log.info "Interrupt..."
 rescue Errno::EACCES
-  $log.error "I need root access to open ports #{options[:smtp_port]} and / or #{options[:pop3_port]}. Please sudo #{__FILE__}"
+  log.error "I need root access to open ports #{options[:smtp_port]} and / or #{options[:pop3_port]}. Please sudo #{__FILE__}"
 end
 
